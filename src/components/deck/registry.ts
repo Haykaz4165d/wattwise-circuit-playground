@@ -21,7 +21,7 @@ export const slides: SlideDef[] = [
   { id: "team2", title: "Թիմ 2 · Standby", Component: Team2Slide },
   { id: "light", title: "Լուսավորության ֆիզիկա", Component: LightPhysicsSlide },
   { id: "circuits", title: "Հաջորդաբար և զուգահեռ միացում", Component: CircuitsSlide },
-  { id: "bulbgame", title: "Խաղ · Միացրու լամպերը", Component: BulbGameSlide },
+  { id: "bulbgame", title: "Լաբորատորիա · Հավաքիր շղթան", Component: BulbGameSlide },
   { id: "team3", title: "Թիմ 3 · LED", Component: Team3Slide },
   { id: "table", title: "Հաշվարկային աղյուսակ", Component: TableSlide },
   { id: "deliverables", title: "Վերջնարդյունքներ", Component: DeliverablesSlide },

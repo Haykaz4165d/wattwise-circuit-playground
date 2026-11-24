@@ -66,82 +66,146 @@ export function CircuitsSlide() {
   );
 }
 
-type Mode = "series" | "parallel";
+export type Mode = "series" | "parallel" | "mixed";
+export const SOURCE_U = 12; // V
+export const BULB_R = 6; // Ω, each bulb: 12 V → 2 A, 24 W nominal
+const P_NOM = (SOURCE_U * SOURCE_U) / BULB_R;
 
-/** Brightness of each identical bulb: series → P/n², parallel → P. */
-export function bulbLevels(mode: Mode, broken: boolean[]): number[] {
+export type BulbState = { u: number; i: number; p: number };
+export type Circuit = { r: number; i: number; bulbs: BulbState[] };
+
+const off = (n: number): Circuit => ({ r: Infinity, i: 0, bulbs: Array.from({ length: n }, () => ({ u: 0, i: 0, p: 0 })) });
+const st = (i: number): BulbState => ({ u: i * BULB_R, i, p: i * i * BULB_R });
+
+/** Ohm's law for identical bulbs; a removed bulb is an open circuit. Mixed: bulb 1 in series with the others in parallel. */
+export function solveCircuit(mode: Mode, broken: boolean[], U = SOURCE_U): Circuit {
   const n = broken.length;
-  if (mode === "parallel") return broken.map((b) => (b ? 0 : 1));
-  if (broken.some(Boolean)) return broken.map(() => 0);
-  return broken.map(() => 1 / (n * n));
+  if (mode === "series") {
+    if (broken.some(Boolean)) return off(n);
+    const r = n * BULB_R, i = U / r;
+    return { r, i, bulbs: broken.map(() => st(i)) };
+  }
+  if (mode === "parallel") {
+    const k = broken.filter((b) => !b).length;
+    if (!k) return off(n);
+    const i1 = U / BULB_R;
+    return { r: BULB_R / k, i: i1 * k, bulbs: broken.map((b) => st(b ? 0 : i1)) };
+  }
+  const k = broken.slice(1).filter((b) => !b).length;
+  if (broken[0] || !k) return off(n);
+  const r = BULB_R + BULB_R / k, i = U / r;
+  return { r, i, bulbs: broken.map((b, j) => st(j === 0 ? i : b ? 0 : i / k)) };
 }
 
-/* Interactive game: build a series or parallel circuit and unscrew bulbs */
+const fmt = (x: number, d = 2) => (Number.isFinite(x) ? String(+x.toFixed(d)) : "∞");
+
+function Wire({ v = false, len }: { v?: boolean; len: number }) {
+  return <div className="rounded-full bg-energy" style={v ? { width: 8, height: len } : { height: 8, width: len }} />;
+}
+
+function BulbCell({ idx, s, broken, onToggle, size }: { idx: number; s: BulbState; broken: boolean; onToggle: () => void; size: number }) {
+  return (
+    <button onClick={onToggle} aria-label={`Լամպ ${idx + 1}`} className="flex items-center gap-3">
+      <Bulb level={Math.min(1, s.p / P_NOM)} broken={broken} size={size} />
+      <div className="slide-num w-[150px] text-left text-[22px] leading-tight">
+        <div className="font-bold text-led">L{idx + 1}</div>
+        <div>U = {fmt(s.u)} Վ</div>
+        <div>I = {fmt(s.i)} Ա</div>
+        <div>P = {fmt(s.p, 1)} Վտ</div>
+      </div>
+    </button>
+  );
+}
+
+function Battery() {
+  return (
+    <div className="flex flex-col items-center">
+      <div className="flex items-center gap-2">
+        <div className="h-[90px] w-[10px] rounded bg-foreground" />
+        <div className="h-[50px] w-[10px] rounded bg-foreground/70" />
+      </div>
+      <div className="slide-num mt-2 text-[24px] font-bold">{SOURCE_U} Վ</div>
+    </div>
+  );
+}
+
+function ParallelGroup({ ids, c, broken, toggle, size }: { ids: number[]; c: Circuit; broken: boolean[]; toggle: (i: number) => void; size: number }) {
+  return (
+    <div className="flex items-stretch">
+      <Wire v len={0} />
+      <div className="flex flex-col justify-center gap-3 border-x-[8px] border-primary px-0 py-1">
+        {ids.map((i) => (
+          <div key={i} className="flex items-center">
+            <Wire len={40} />
+            <BulbCell idx={i} s={c.bulbs[i]!} broken={!!broken[i]} onToggle={() => toggle(i)} size={size} />
+            <Wire len={20} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* Interactive circuit lab: series, parallel or mixed, with real U, I, P per bulb */
 export function BulbGameSlide() {
   const [mode, setMode] = useState<Mode>("series");
   const [broken, setBroken] = useState<boolean[]>([false, false, false]);
-  const levels = bulbLevels(mode, broken);
-  const total = Math.round(levels.reduce((a, b) => a + b, 0) * 100);
+  const c = solveCircuit(mode, broken);
+  const toggle = (i: number) => setBroken(broken.map((x, j) => (j === i ? !x : x)));
+  const choose = (m: Mode) => { setMode(m); if (m === "mixed" && broken.length < 3) setBroken([false, false, false]); };
   const btn = (active: boolean) =>
-    cn("rounded-full border px-8 py-4 text-[28px] font-bold transition-colors",
+    cn("rounded-full border px-7 py-3 text-[26px] font-bold transition-colors",
       active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-secondary/40 text-foreground hover:bg-secondary");
+  const ids = broken.map((_, i) => i);
+  const size = mode !== "series" && broken.length > 3 ? 56 : 70;
+  const totalP = c.bulbs.reduce((a, b) => a + b.p, 0);
   return (
     <SlideLayout>
-      <div className="absolute inset-x-[110px] top-[80px]">
-        <Kicker tone="led"><Gamepad2 className="h-6 w-6" /> Խաղ</Kicker>
-        <h2 className="slide-title a-rise mt-5" style={delay(120)}>Միացրու <span className="text-gradient-energy">լամպերը</span></h2>
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <button className={btn(mode === "series")} onClick={() => setMode("series")}>Հաջորդաբար</button>
-          <button className={btn(mode === "parallel")} onClick={() => setMode("parallel")}>Զուգահեռ</button>
-          <span className="mx-4 text-[26px] text-muted-foreground">Լամպեր՝</span>
+      <div className="absolute inset-x-[100px] top-[70px]">
+        <Kicker tone="led"><Gamepad2 className="h-6 w-6" /> Լաբորատորիա</Kicker>
+        <h2 className="slide-title a-rise mt-4" style={delay(120)}>Հավաքիր <span className="text-gradient-energy">շղթան</span></h2>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <button className={btn(mode === "series")} onClick={() => choose("series")}>Հաջորդաբար</button>
+          <button className={btn(mode === "parallel")} onClick={() => choose("parallel")}>Զուգահեռ</button>
+          <button className={btn(mode === "mixed")} onClick={() => choose("mixed")}>Խառը</button>
+          <span className="mx-3 text-[24px] text-muted-foreground">Լամպեր՝</span>
           {[2, 3, 4].map((n) => (
-            <button key={n} className={btn(broken.length === n)} onClick={() => setBroken(Array(n).fill(false))}>{n}</button>
+            <button key={n} disabled={mode === "mixed" && n < 3} className={cn(btn(broken.length === n), "disabled:opacity-30")} onClick={() => setBroken(Array(n).fill(false))}>{n}</button>
           ))}
-          <button className={btn(false)} onClick={() => setBroken(broken.map(() => false))} aria-label="Վերականգնել">
-            <RotateCcw className="h-7 w-7" />
-          </button>
+          <button className={btn(false)} onClick={() => setBroken(broken.map(() => false))} aria-label="Վերականգնել"><RotateCcw className="h-7 w-7" /></button>
         </div>
 
-        <div className="glass-card mt-10 rounded-[36px] px-12 py-8">
-          {mode === "series" ? (
-            <div className="flex items-end justify-center gap-0">
-              {broken.map((b, i) => (
-                <div key={i} className="flex items-end">
-                  <div className="mb-[30px] h-[8px] w-[90px] rounded-full bg-energy" />
-                  <button onClick={() => setBroken(broken.map((x, j) => (j === i ? !x : x)))} aria-label={`Լամպ ${i + 1}`}>
-                    <Bulb level={levels[i] ?? 0} broken={b} />
-                  </button>
-                </div>
-              ))}
-              <div className="mb-[30px] h-[8px] w-[90px] rounded-full bg-energy" />
+        <div className="glass-card mt-6 flex h-[460px] items-center justify-center gap-0 rounded-[36px] px-10">
+          <Battery />
+          <Wire len={50} />
+          {mode === "series" && ids.map((i) => (
+            <div key={i} className="flex items-center">
+              <BulbCell idx={i} s={c.bulbs[i]!} broken={!!broken[i]} onToggle={() => toggle(i)} size={size} />
+              <Wire len={30} />
             </div>
-          ) : (
-            <div className="flex items-stretch justify-center">
-              <div className="w-[8px] rounded-full bg-energy" />
-              <div className="flex flex-col gap-4">
-                {broken.map((b, i) => (
-                  <div key={i} className="flex items-center">
-                    <div className="h-[8px] w-[160px] bg-energy" />
-                    <button onClick={() => setBroken(broken.map((x, j) => (j === i ? !x : x)))} aria-label={`Լամպ ${i + 1}`} className="-my-2">
-                      <Bulb level={levels[i] ?? 0} broken={b} size={broken.length > 3 ? 70 : 90} />
-                    </button>
-                    <div className="h-[8px] w-[160px] bg-energy" />
-                  </div>
-                ))}
-              </div>
-              <div className="w-[8px] rounded-full bg-energy" />
-            </div>
+          ))}
+          {mode === "parallel" && <ParallelGroup ids={ids} c={c} broken={broken} toggle={toggle} size={size} />}
+          {mode === "mixed" && (
+            <>
+              <BulbCell idx={0} s={c.bulbs[0]!} broken={!!broken[0]} onToggle={() => toggle(0)} size={size} />
+              <Wire len={30} />
+              <ParallelGroup ids={ids.slice(1)} c={c} broken={broken} toggle={toggle} size={size} />
+            </>
           )}
+          <Wire len={50} />
+          <span className="text-[26px] text-muted-foreground">↩</span>
         </div>
 
-        <div className="mt-8 flex items-center justify-between text-[28px]">
-          <span className="flex items-center gap-3 text-muted-foreground">
-            <Lightbulb className="h-8 w-8 text-led" /> Սեղմիր լամպին՝ այն պտուտակից հանելու համար
-          </span>
-          <span>
-            Ընդհանուր լույս՝ <b className="slide-num text-primary">{total}%</b>
-            <span className="text-muted-foreground"> (1 լամպի համեմատ)</span>
-          </span>
+        <div className="mt-6 grid grid-cols-4 gap-6 text-[26px]">
+          {[["R ընդհ.", `${fmt(c.r)} Օմ`], ["I ընդհ.", `${fmt(c.i)} Ա`], ["P ընդհ.", `${fmt(totalP, 1)} Վտ`], ["Մեկ լամպ", `${BULB_R} Օմ`]].map(([k, v]) => (
+            <div key={k} className="glass-card rounded-[20px] px-6 py-3">
+              <div className="text-muted-foreground">{k}</div>
+              <div className="slide-num font-bold text-primary">{v}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center gap-3 text-[24px] text-muted-foreground">
+          <Lightbulb className="h-7 w-7 text-led" /> Սեղմիր լամպին՝ հանելու կամ նորից պտուտակելու համար
         </div>
       </div>
     </SlideLayout>
