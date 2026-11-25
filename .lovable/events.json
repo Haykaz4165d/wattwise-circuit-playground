@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "events": {
+    "project.poll_questions_viewed": {
+      "event_schema_version": 1,
+      "description": "A visitor opened the vote page and saw the poll questions.",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "question_count"
+        ],
+        "properties": {
+          "question_count": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "project.poll_results_viewed": {
+      "event_schema_version": 1,
+      "description": "The poll results slide was shown in the presentation player.",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {}
+      }
+    },
+    "project.poll_vote_submitted": {
+      "event_schema_version": 1,
+      "description": "A visitor sent their poll ballot (result ok or already voted).",
+      "privacy": {
+        "contains_pii": false,
+        "purpose": "product_analytics"
+      },
+      "properties_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "result"
+        ],
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "already"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

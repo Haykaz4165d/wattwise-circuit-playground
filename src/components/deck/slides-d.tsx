@@ -82,6 +82,10 @@ function ResultBlock({ qi, counts }: { qi: number; counts: number[] }) {
 
 /* 17 — Audience poll with QR code and live percentages */
 export function PollSlide() {
+  const { static: isStatic } = useSlide();
+  useEffect(() => {
+    if (!isStatic) window.__lovableEvents?.track?.("project.poll_results_viewed", {});
+  }, [isStatic]);
   const tally = useLiveTally();
   const voters = voterCount(tally);
   return (

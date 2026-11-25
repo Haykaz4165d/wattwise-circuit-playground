@@ -31,6 +31,7 @@ function VotePage() {
 
   useEffect(() => {
     if (hasVoted()) setDone(true);
+    else window.__lovableEvents?.track?.("project.poll_questions_viewed", { question_count: POLL_QUESTIONS.length });
   }, []);
 
   const answered = answers.filter((a) => a !== undefined).length;
@@ -42,6 +43,7 @@ function VotePage() {
     setError(null);
     try {
       const res = await submitVote(answers as number[]);
+      window.__lovableEvents?.track?.("project.poll_vote_submitted", { result: res });
       if (res === "already") setNote("Այս սարքից արդեն քվեարկել եք։");
       setDone(true);
       window.scrollTo({ top: 0, behavior: "smooth" });
