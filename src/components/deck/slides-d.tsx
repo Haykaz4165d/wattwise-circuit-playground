@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Smartphone, Users, Vote } from "lucide-react";
 import { Kicker, SlideLayout, delay } from "./SlideLayout";
+import { CountUp } from "./CountUp";
 import { useSlide } from "./context";
 import { POLL_QUESTIONS, VOTE_URL, emptyTally, percentages, voterCount, type Tally } from "@/lib/poll";
 import { fetchTally } from "@/lib/poll-api";
@@ -37,6 +38,19 @@ function QrCard() {
   );
 }
 
+/** Bar that grows from 0 to its percentage when the slide appears. */
+function AnimatedBar({ pct, delayMs }: { pct: number; delayMs: number }) {
+  const { static: isStatic } = useSlide();
+  const [w, setW] = useState(isStatic ? pct : 0);
+  useEffect(() => {
+    if (isStatic) return setW(pct);
+    setW(0);
+    const t = setTimeout(() => setW(pct), 400 + delayMs);
+    return () => clearTimeout(t);
+  }, [pct, isStatic, delayMs]);
+  return <div className="bg-energy h-full rounded-full transition-[width] duration-1000 ease-out" style={{ width: `${w}%` }} />;
+}
+
 function ResultBlock({ qi, counts }: { qi: number; counts: number[] }) {
   const q = POLL_QUESTIONS[qi]!;
   const pct = percentages(counts);
@@ -52,10 +66,12 @@ function ResultBlock({ qi, counts }: { qi: number; counts: number[] }) {
           <div key={oi}>
             <div className="flex items-baseline justify-between gap-3 text-[21px]">
               <span className="truncate text-muted-foreground">{opt}</span>
-              <span className={`slide-num font-bold ${pct[oi] === top && top > 0 ? "text-primary" : "text-foreground"}`}>{pct[oi]}%</span>
+              <span className={`slide-num font-bold ${pct[oi] === top && top > 0 ? "text-primary" : "text-foreground"}`}>
+                <CountUp to={pct[oi] ?? 0} duration={1000} delay={400 + qi * 120 + oi * 80} />%
+              </span>
             </div>
             <div className="mt-1 h-[9px] overflow-hidden rounded-full bg-secondary/60">
-              <div className="bg-energy h-full rounded-full transition-[width] duration-1000 ease-out" style={{ width: `${pct[oi]}%` }} />
+              <AnimatedBar pct={pct[oi] ?? 0} delayMs={qi * 120 + oi * 80} />
             </div>
           </div>
         ))}
